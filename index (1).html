@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>アナリティクスダッシュボード</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',sans-serif;background:#F0F7FF;color:#111;font-size:14px;min-height:100vh;}
+.app{padding:.75rem .875rem 3rem;max-width:720px;margin:0 auto;}
+
+/* top bar */
+.topbar{background:#fff;border-bottom:.5px solid #B5D4F4;padding:.625rem .875rem;position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:8px;}
+.topbar-title{font-size:15px;font-weight:700;color:#042C53;flex:1;}
+.sbtn{padding:8px 14px;border:.5px solid #85B7EB;border-radius:8px;font-size:12px;cursor:pointer;font-weight:500;white-space:nowrap;min-height:38px;touch-action:manipulation;}
+.sbtn-blue{background:#378ADD;color:#fff;border-color:#378ADD;}
+.sbtn-blue:active{background:#185FA5;}
+.save-status{font-size:11px;color:#378ADD;text-align:center;padding:4px .875rem;background:#E6F1FB;}
+
+/* nav */
+.nav{display:flex;gap:4px;padding:.625rem 0;flex-wrap:wrap;}
+.nb{padding:9px 14px;border:.5px solid #B5D4F4;border-radius:8px;font-size:13px;cursor:pointer;background:#fff;color:#185FA5;min-height:40px;touch-action:manipulation;font-weight:400;}
+.nb.active{background:#378ADD;color:#fff;border-color:#378ADD;font-weight:500;}
+
+/* sections */
+.sec{display:none;}.sec.active{display:block;}
+
+/* year tabs */
+.ytabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:.75rem;}
+.yt{padding:4px 12px;border:.5px solid #B5D4F4;border-radius:8px;font-size:12px;cursor:pointer;background:#fff;color:#185FA5;}
+.yt.active{background:#378ADD;color:#fff;border-color:#378ADD;font-weight:500;}
+
+/* month tabs */
+.mtabs{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:.75rem;}
+.mt-btn{padding:3px 9px;border:.5px solid #B5D4F4;border-radius:6px;font-size:11px;cursor:pointer;background:#fff;color:#185FA5;}
+.mt-btn.active{background:#1D9E75;color:#fff;border-color:#1D9E75;}
+
+/* cards */
+.card{background:#fff;border-radius:10px;padding:1rem;margin-bottom:.75rem;border:.5px solid #E0EBF5;}
+.ct{font-size:13px;font-weight:600;color:#042C53;margin-bottom:.75rem;}
+.sh{margin-bottom:.75rem;}.st{font-size:16px;font-weight:700;color:#042C53;}
+
+/* grid */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:.75rem;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:.75rem;}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:.75rem;}
+.metric{background:#F4F9FF;border-radius:8px;padding:.75rem .625rem;}
+.metric-label{font-size:11px;color:#5A7A99;margin-bottom:2px;}
+.metric-value{font-size:18px;font-weight:700;color:#042C53;}
+
+/* table */
+.tb{width:100%;border-collapse:collapse;font-size:12px;}
+.tb th{background:#F4F9FF;padding:6px 8px;text-align:left;font-weight:600;border-bottom:.5px solid #D0E3F5;white-space:nowrap;}
+.tb td{padding:6px 8px;border-bottom:.5px solid #E8F0F8;}
+.tb .n{text-align:right;font-variant-numeric:tabular-nums;}
+.corr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+/* inputs */
+input,select,textarea{font-size:14px;padding:8px 10px;border:.5px solid #B5D4F4;border-radius:8px;background:#fff;color:#111;font-family:inherit;}
+input:focus,textarea:focus{outline:none;border-color:#378ADD;}
+input[type=number]{-moz-appearance:textfield;}
+
+/* add row */
+.ar{display:flex;gap:6px;flex-wrap:wrap;margin-top:.5rem;align-items:center;}
+.ar input,.ar select{flex:1;min-width:0;}
+.ar button{padding:8px 14px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;}
+.ar button:active{background:#157A5A;}
+.del-btn{background:none;border:none;color:#C0392B;cursor:pointer;font-size:16px;padding:2px 6px;}
+.edit-btn{background:none;border:none;color:#378ADD;cursor:pointer;font-size:13px;padding:2px 6px;}
+.edit-btn:hover{text-decoration:underline;}
+.edit-row input{width:100%;font-size:12px;padding:4px 6px;border:.5px solid #378ADD;border-radius:4px;}
+.rank-bar{height:20px;border-radius:4px;background:#378ADD;min-width:2px;display:inline-block;vertical-align:middle;}
+.rank-name{font-size:12px;color:#042C53;margin-bottom:2px;}
+.rank-val{font-size:12px;color:#5A7A99;font-variant-numeric:tabular-nums;}
+
+/* chart container */
+.chart-box{position:relative;width:100%;height:260px;margin-bottom:.5rem;}
+
+/* loading */
+.loading-overlay{position:fixed;inset:0;background:#F0F7FF;display:flex;align-items:center;justify-content:center;z-index:999;font-size:15px;color:#378ADD;}
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loading">読み込み中...</div>
+<div class="topbar">
+  <div class="topbar-title">📊 Analytics</div>
+  <button class="sbtn sbtn-blue" id="savebtn" onclick="saveData()">保存</button>
+</div>
+<div class="save-status" id="ss">読み込み中...</div>
+
+<div class="app">
+<div class="nav">
+  <button class="nb active" onclick="sw('overview',this)">概要</button>
+  <button class="nb" onclick="sw('note',this)">note</button>
+  <button class="nb" onclick="sw('x',this)">X</button>
+  <button class="nb" onclick="sw('mond',this)">mond</button>
+  <button class="nb" onclick="sw('graph',this)">グラフ</button>
+  <button class="nb" onclick="sw('corr',this)">考察</button>
+</div>
+
+<!-- 概要 -->
+<div id="sec-overview" class="sec active">
+  <div class="sh"><div class="st">概要</div></div>
+  <div class="ytabs" id="oy"></div>
+  <div class="g2">
+    <div class="metric"><div class="metric-label">noteフォロワー</div><div class="metric-value" id="o-nf">—</div></div>
+    <div class="metric"><div class="metric-label">Xフォロワー</div><div class="metric-value" id="o-xf">—</div></div>
+  </div>
+  <div class="g3">
+    <div class="metric"><div class="metric-label">noteビュー</div><div class="metric-value" id="o-nv">—</div></div>
+    <div class="metric"><div class="metric-label">Xインプレ</div><div class="metric-value" id="o-xi">—</div></div>
+    <div class="metric"><div class="metric-label">合計売上</div><div class="metric-value" id="o-rev">—</div></div>
+  </div>
+  <div class="card">
+    <div class="ct">月別推移（<span id="o-year"></span>年）</div>
+    <div class="corr-wrap"><table class="tb" style="min-width:780px;">
+      <thead><tr><th>月</th><th>noteF</th><th>XF</th><th>noteビュー</th><th>記事数</th><th>サブスク</th><th>サブ売上</th><th>単品売上</th><th>マガジン売上</th><th>合計</th><th>Xインプレ</th><th>mondビュー</th><th>mond質問</th><th>mond収益</th></tr></thead>
+      <tbody id="ob"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- note -->
+<div id="sec-note" class="sec">
+  <div class="sh"><div class="st">note</div></div>
+  <div class="ytabs" id="ny"></div>
+  <div class="card">
+    <div class="ct">月別データ</div>
+    <div class="corr-wrap"><table class="tb">
+      <thead><tr><th>月</th><th>フォロワー</th><th>ビュー数</th><th>更新記事数</th><th>サブスク人数</th><th>サブスク売上</th></tr></thead>
+      <tbody id="nb"></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="ct">単品記事（売上）</div>
+    <div class="ytabs" id="nay"></div>
+    <div class="mtabs" id="nam"></div>
+    <table class="tb"><thead><tr><th>売上日</th><th>記事タイトル</th><th>部数</th><th>売上(税込)</th><th></th></tr></thead><tbody id="nab"></tbody></table>
+    <div class="ar">
+      <input type="date" id="na-date" style="max-width:130px;"/>
+      <input type="text" placeholder="記事タイトル" id="na-title"/>
+      <input type="number" placeholder="部数" id="na-copies" style="max-width:70px;"/>
+      <input type="number" placeholder="売上(税込)" id="na-rev" style="max-width:100px;"/>
+      <button onclick="addArt()">+ 追加</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">有料マガジン</div>
+    <div class="ytabs" id="nmy"></div>
+    <div class="mtabs" id="nmm"></div>
+    <table class="tb"><thead><tr><th>日付</th><th>マガジン名</th><th>部数</th><th>売上(税込)</th><th></th></tr></thead><tbody id="nmb"></tbody></table>
+    <div class="ar">
+      <input type="date" id="nm-date" style="max-width:130px;"/>
+      <input type="text" placeholder="マガジン名" id="nm-name"/>
+      <input type="number" placeholder="部数" id="nm-copies" style="max-width:70px;"/>
+      <input type="number" placeholder="売上(税込)" id="nm-rev" style="max-width:100px;"/>
+      <button onclick="addMag()">+ 追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- X -->
+<div id="sec-x" class="sec">
+  <div class="sh"><div class="st">X（Twitter）</div></div>
+  <div class="ytabs" id="xy"></div>
+  <div class="card">
+    <div class="ct">月別データ</div>
+    <div class="corr-wrap"><table class="tb">
+      <thead><tr><th>月</th><th>フォロワー</th><th>インプレッション</th></tr></thead>
+      <tbody id="xb"></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="ct">X収益</div>
+    <table class="tb"><thead><tr><th>開始日</th><th>終了日</th><th>収益（円）</th><th>メモ</th><th></th></tr></thead><tbody id="xrb"></tbody></table>
+    <div class="ar">
+      <input type="date" id="xr-s" style="max-width:120px;"/>
+      <input type="date" id="xr-e" style="max-width:120px;"/>
+      <input type="number" placeholder="収益" id="xr-a" style="max-width:100px;"/>
+      <input type="text" placeholder="メモ" id="xr-m"/>
+      <button onclick="addXR()">+ 追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- mond -->
+<div id="sec-mond" class="sec">
+  <div class="sh"><div class="st">mond</div></div>
+  <div class="ytabs" id="my"></div>
+  <div class="card">
+    <div class="ct">月別データ</div>
+    <div class="corr-wrap"><table class="tb">
+      <thead><tr><th>月</th><th>ビュー数</th><th>質問数</th></tr></thead>
+      <tbody id="mb"></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="ct">mond収益</div>
+    <div class="ytabs" id="mry"></div>
+    <div class="mtabs" id="mrm-tabs"></div>
+    <table class="tb"><thead><tr><th>日付</th><th>収益（円）</th><th>メモ</th><th></th></tr></thead><tbody id="mrb"></tbody></table>
+    <div class="ar">
+      <input type="date" id="mr-d" style="max-width:130px;"/>
+      <input type="number" placeholder="収益（円）" id="mr-a" style="max-width:100px;"/>
+      <input type="text" placeholder="メモ" id="mr-m"/>
+      <button onclick="addMR()">+ 追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- グラフ -->
+<div id="sec-graph" class="sec">
+  <div class="sh"><div class="st">グラフ</div></div>
+  <div class="ytabs" id="gy"></div>
+  <div class="card">
+    <div class="ct">フォロワー推移（note × X）</div>
+    <div class="chart-box"><canvas id="ch-followers"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="ct">ビュー / インプレッション（note × X）</div>
+    <div class="chart-box"><canvas id="ch-views"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="ct">売上推移（全プラットフォーム）</div>
+    <div class="chart-box"><canvas id="ch-revenue"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="ct">フォロワー増減（note × X）</div>
+    <div class="chart-box"><canvas id="ch-folgrowth"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="ct">単品記事 売上ランキング</div>
+    <div id="rank-list"></div>
+  </div>
+</div>
+
+<!-- 考察メモ -->
+<div id="sec-corr" class="sec">
+  <div class="sh"><div class="st">考察メモ</div></div>
+  <div class="ytabs" id="cy"></div>
+  <div class="card">
+    <div class="ct">月別サマリー</div>
+    <div class="corr-wrap"><table class="tb" style="min-width:780px;">
+      <thead><tr><th>月</th><th>noteF</th><th>XF</th><th>noteビュー</th><th>記事数</th><th>サブスク</th><th>サブ売上</th><th>単品売上</th><th>マガジン売上</th><th>合計</th><th>Xインプレ</th><th>mondビュー</th><th>mond質問</th><th>mond収益</th></tr></thead>
+      <tbody id="cb"></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="ct">メモ</div>
+    <textarea id="memo-ta" style="width:100%;min-height:150px;border:.5px solid #B5D4F4;border-radius:8px;padding:11px;font-size:14px;font-family:inherit;background:#F8FBFF;color:#111;resize:vertical;line-height:1.6;" placeholder="考察・気づきを自由に記録..."></textarea>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<!-- hidden form for GAS POST -->
+<form id="gasForm" method="POST" target="gasFrame" style="display:none;">
+  <input type="hidden" name="data" id="gasData"/>
+</form>
+<iframe id="gasFrame" name="gasFrame" style="display:none;"></iframe>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const GAS_URL='https://script.google.com/macros/s/AKfycbxmwVG312457qK9ErhVdaYIz5F9egoqxVA5HOXQB1OVBB7ZEbUa_L-UDCj7R2PUmmaBwA/exec';
+const MO=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+const MK=['01','02','03','04','05','06','07','08','09','10','11','12'];
+const BY=[2024,2025,2026,2027];
+
+function blank(){
+  return{
+    note:{followers:{},views:{},subCount:{},subRevenue:{},articles:[],articleCount:{},magazines:[]},
+    x:{followers:{},impMonth:{},revenue:[]},
+    mond:{views:{},questions:{},revenue:[]},
+    memo:''
+  };
+}
+
+let D=blank();
+let curYear={o:new Date().getFullYear(),n:new Date().getFullYear(),x:new Date().getFullYear(),m:new Date().getFullYear(),g:new Date().getFullYear(),c:new Date().getFullYear()};
+let artYear=curYear.n, artMonth=MK[new Date().getMonth()];
+let magYear=curYear.n, magMonth=MK[new Date().getMonth()];
+let mRevYear=curYear.m, mRevMonth=MK[new Date().getMonth()];
+let ch={};
+let saveTimer=null;
+
+function ss2(msg,col,bg){const el=document.getElementById('ss');el.textContent=msg;el.style.color=col||'#378ADD';el.style.background=bg||'#E6F1FB';}
+
+/* ── Data load/save via JSONP+form ── */
+function loadData(){
+  const cb='__cb'+Date.now();
+  const s=document.createElement('script');
+  let done=false;
+  window[cb]=function(data){
+    done=true;delete window[cb];try{document.head.removeChild(s);}catch(e){}
+    if(data&&typeof data==='object'){D=mergeData(data);ss2('読込完了 ✓','#0F6E56','#E1F5EE');}
+    else ss2('新規データ','#378ADD','#E6F1FB');
+    document.getElementById('loading').style.display='none';renderAll();
+  };
+  s.onerror=function(){if(done)return;done=true;delete window[cb];
+    ss2('読込失敗（オフライン）','#E8A000','#FFF8E6');
+    document.getElementById('loading').style.display='none';renderAll();
+  };
+  s.src=GAS_URL+'?callback='+cb+'&t='+Date.now();
+  document.head.appendChild(s);
+}
+
+function saveData(){
+  const btn=document.getElementById('savebtn');btn.textContent='保存中...';btn.disabled=true;
+  ss2('保存中...','#378ADD','#E6F1FB');
+  const ta=document.getElementById('memo-ta');if(ta)D.memo=ta.value;
+  document.getElementById('gasData').value=JSON.stringify(D);
+  document.getElementById('gasForm').action=GAS_URL;
+  document.getElementById('gasForm').submit();
+  setTimeout(()=>{
+    const now=new Date();
+    const ts=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    ss2('保存済み — '+ts,'#0F6E56','#E1F5EE');
+    btn.textContent='保存';btn.disabled=false;
+  },2000);
+}
+
+function markDirty(){
+  ss2('未保存の変更あり ＊','#E8A000','#FFF8E6');
+  clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveData(),4000);
+}
+
+function mergeData(old){
+  const b=blank();
+  const d={
+    note:Object.assign(b.note,old.note||{}),
+    x:Object.assign(b.x,old.x||{}),
+    mond:Object.assign(b.mond,old.mond||{}),
+    memo:old.memo||''
+  };
+  if(!d.note.articles)d.note.articles=[];
+  if(!d.note.magazines)d.note.magazines=[];
+  // migrate old article format
+  d.note.articles.forEach(a=>{
+    if(a.date&&!a.saleDate){a.saleDate=a.date;delete a.date;}
+    if(!a.saleDate)a.saleDate='';
+    if(a.copies===undefined)a.copies=0;
+  });
+  return d;
+}
+
+/* ── years ── */
+function allYears(){
+  const s=new Set(BY);
+  const fo=o=>Object.keys(o||{}).forEach(k=>{const y=parseInt(k.split('-')[0]);if(!isNaN(y)&&y>2000)s.add(y);});
+  ['note.followers','note.views','note.articleCount','x.followers','x.impMonth','mond.views','mond.questions'].forEach(p=>{
+    const o=p.split('.').reduce((a,b)=>a&&a[b],D);fo(o);
+  });
+  D.note.articles.forEach(a=>{if(a.saleDate)s.add(parseInt(a.saleDate.split('-')[0]));});
+  D.note.magazines.forEach(a=>{if(a.date)s.add(parseInt(a.date.split('-')[0]));});
+  D.x.revenue.forEach(r=>{if(r.start)s.add(parseInt(r.start.split('-')[0]));});
+  D.mond.revenue.forEach(r=>{if(r.date)s.add(parseInt(r.date.split('-')[0]));});
+  return Array.from(s).sort();
+}
+
+function renderYearTabs(id,cur,fn){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML=allYears().map(y=>`<button class="yt${y===cur?' active':''}" onclick="${fn}(${y})">${y}</button>`).join('');
+}
+
+function renderMonthTabs(id,cur,fn){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML=MK.map((m,i)=>`<button class="mt-btn${m===cur?' active':''}" onclick="${fn}('${m}')">${i+1}月</button>`).join('');
+}
+
+/* ── navigation ── */
+function sw(sec,btn){
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+sec).classList.add('active');
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(sec==='graph')renderGraphs();
+}
+
+/* ── helper: get val ── */
+function gv(obj,y,m){return obj[y+'-'+m];}
+function sv(obj,y,m,v){obj[y+'-'+m]=v;markDirty();}
+
+/* ── note monthly input row ── */
+function noteMonthInput(m,i){
+  const k=curYear.n+'-'+m;
+  const fc=D.note.followers[k];const vi=D.note.views[k];const ac=D.note.articleCount[k];
+  const sc=D.note.subCount[k];const sr=D.note.subRevenue[k];
+  return `<tr>
+    <td>${i+1}月</td>
+    <td><input type="number" value="${fc!==undefined?fc:''}" style="width:90px" onchange="D.note.followers['${k}']=this.value?Number(this.value):undefined;markDirty();"/></td>
+    <td><input type="number" value="${vi!==undefined?vi:''}" style="width:90px" onchange="D.note.views['${k}']=this.value?Number(this.value):undefined;markDirty();"/></td>
+    <td><input type="number" value="${ac!==undefined?ac:''}" style="width:70px" onchange="D.note.articleCount['${k}']=this.value?Number(this.value):undefined;markDirty();"/></td>
+    <td><input type="number" value="${sc!==undefined?sc:''}" style="width:70px" onchange="D.note.subCount['${k}']=this.value?Number(this.value):undefined;markDirty();"/></td>
+    <td><input type="number" value="${sr!==undefined?sr:''}" style="width:100px" onchange="D.note.subRevenue['${k}']=this.value?Number(this.value):undefined;markDirty();"/></td>
+  </tr>`;
+}
+
+/* ── x monthly input row ── */
+function xMonthInput(m,i){
+  const k=curYear.x+'-'+m;
+  const fc=D.x.followers[k];const im=D.x.impMonth[k];
+  return `<tr>
+    <td>${i+1}月</td>
+    <td><input type="number" value="${fc!==undefined?fc:''}" style="width:100px" onchange="D.x.followers['${k}']=this.value?Number(this.value):undefined;markDirty();"/></td>
+    <td><input type="number" value="${im!==undefined?im:''}" style="width:100px" onchange="D.x.impMonth['${k}']=this.value?Number(this.value):undefined;markDirty();"/></td>
+  </tr>`;
+}
+
+/* ── mond monthly input row ── */
+function mondMonthInput(m,i){
+  const k=curYear.m+'-'+m;
+  const mv=D.mond.views[k];const mq=D.mond.questions[k];
+  return `<tr>
+    <td>${i+1}月</td>
+    <td><input type="number" value="${mv!==undefined?mv:''}" style="width:100px" onchange="D.mond.views['${k}']=this.value?Number(this.value):undefined;markDirty();"/></td>
+    <td><input type="number" value="${mq!==undefined?mq:''}" style="width:100px" onchange="D.mond.questions['${k}']=this.value?Number(this.value):undefined;markDirty();"/></td>
+  </tr>`;
+}
+
+/* ── render functions ── */
+function renderOverview(){
+  renderYearTabs('oy',curYear.o,'setOY');
+  const y=curYear.o;
+  document.getElementById('o-year').textContent=y;
+  // latest month data
+  let lnf='—',lxf='—',tnv=0,txi=0,trev=0;
+  for(let i=11;i>=0;i--){
+    const k=y+'-'+MK[i];
+    if(lnf==='—'&&D.note.followers[k]!==undefined)lnf=Number(D.note.followers[k]).toLocaleString();
+    if(lxf==='—'&&D.x.followers[k]!==undefined)lxf=Number(D.x.followers[k]).toLocaleString();
+  }
+  MK.forEach(m=>{
+    const k=y+'-'+m;
+    tnv+=Number(D.note.views[k]||0);
+    txi+=Number(D.x.impMonth[k]||0);
+    trev+=Number(D.note.subRevenue[k]||0);
+  });
+  // article revenue for year
+  let artRev=0;
+  D.note.articles.forEach(a=>{if(a.saleDate&&a.saleDate.startsWith(y+'-'))artRev+=Number(a.revenue||0);});
+  let magRev=0;
+  D.note.magazines.forEach(a=>{if(a.date&&a.date.startsWith(y+'-'))magRev+=Number(a.revenue||0);});
+  let mondRev=0;
+  D.mond.revenue.forEach(r=>{if(r.date&&r.date.startsWith(y+'-'))mondRev+=Number(r.amount||0);});
+  trev+=artRev+magRev+mondRev;
+
+  document.getElementById('o-nf').textContent=lnf;
+  document.getElementById('o-xf').textContent=lxf;
+  document.getElementById('o-nv').textContent=tnv>0?tnv.toLocaleString():'—';
+  document.getElementById('o-xi').textContent=txi>0?txi.toLocaleString():'—';
+  document.getElementById('o-rev').textContent=trev>0?'¥'+trev.toLocaleString():'—';
+
+  // monthly table
+  document.getElementById('ob').innerHTML=MK.map((m,i)=>{
+    const k=y+'-'+m;
+    const nf=D.note.followers[k];const xf=D.x.followers[k];
+    const nv=D.note.views[k];const ac=D.note.articleCount[k];
+    const sc=D.note.subCount[k];const sr=Number(D.note.subRevenue[k]||0);
+    const xi=D.x.impMonth[k];const mv=D.mond.views[k];const mq=D.mond.questions[k];
+    let ar2=0;D.note.articles.forEach(a=>{if(a.saleDate&&a.saleDate.startsWith(k))ar2+=Number(a.revenue||0);});
+    let mg2=0;D.note.magazines.forEach(a=>{if(a.date&&a.date.startsWith(k))mg2+=Number(a.revenue||0);});
+    let mr2=0;D.mond.revenue.forEach(r=>{if(r.date&&r.date.startsWith(k))mr2+=Number(r.amount||0);});
+    const total=sr+ar2+mg2+mr2;
+    const v=x=>x!==undefined&&x!==''?Number(x).toLocaleString():'—';
+    const yen=x=>x>0?'¥'+x.toLocaleString():'—';
+    return `<tr><td>${i+1}月</td><td class="n">${v(nf)}</td><td class="n">${v(xf)}</td><td class="n">${v(nv)}</td><td class="n">${v(ac)}</td><td class="n">${v(sc)}</td><td class="n">${yen(sr)}</td><td class="n">${yen(ar2)}</td><td class="n">${yen(mg2)}</td><td class="n">${yen(total)}</td><td class="n">${v(xi)}</td><td class="n">${v(mv)}</td><td class="n">${v(mq)}</td><td class="n">${yen(mr2)}</td></tr>`;
+  }).join('');
+}
+
+function renderNote(){
+  renderYearTabs('ny',curYear.n,'setNY');
+  document.getElementById('nb').innerHTML=MK.map((m,i)=>noteMonthInput(m,i)).join('');
+  renderArticles();
+  renderMagazines();
+}
+
+function renderArticles(){
+  renderYearTabs('nay',artYear,'setArtY');
+  renderMonthTabs('nam',artMonth,'setArtM');
+  const prefix=artYear+'-'+artMonth;
+  const filtered=D.note.articles.map((a,idx)=>({...a,idx})).filter(a=>a.saleDate&&a.saleDate.startsWith(prefix));
+  document.getElementById('nab').innerHTML=filtered.map(a=>{
+    if(a.idx===editingArtIdx){
+      return `<tr class="edit-row">
+        <td><input type="date" id="ea-date" value="${a.saleDate||''}" style="max-width:130px;"/></td>
+        <td><input type="text" id="ea-title" value="${(a.title||'').replace(/"/g,'&quot;')}"/></td>
+        <td><input type="number" id="ea-copies" value="${a.copies||0}" style="max-width:60px;"/></td>
+        <td><input type="number" id="ea-rev" value="${a.revenue||0}" style="max-width:90px;"/></td>
+        <td style="white-space:nowrap;"><button class="edit-btn" style="color:#1D9E75;font-weight:600;" onclick="saveArt(${a.idx})">保存</button><button class="edit-btn" style="color:#999;" onclick="cancelEditArt()">取消</button></td>
+      </tr>`;
+    }
+    return `<tr><td>${a.saleDate||'—'}</td><td>${a.title||''}</td><td class="n">${a.copies||0}</td><td class="n">¥${Number(a.revenue||0).toLocaleString()}</td><td style="white-space:nowrap;"><button class="edit-btn" onclick="editArt(${a.idx})">編集</button><button class="del-btn" onclick="delArt(${a.idx})">×</button></td></tr>`;
+  }).join('');
+  if(filtered.length===0){
+    document.getElementById('nab').innerHTML='<tr><td colspan="5" style="text-align:center;color:#999;padding:1rem;">データなし</td></tr>';
+  }
+}
+let editingArtIdx=-1;
+function editArt(i){editingArtIdx=i;renderArticles();}
+function cancelEditArt(){editingArtIdx=-1;renderArticles();}
+function saveArt(i){
+  D.note.articles[i].saleDate=document.getElementById('ea-date').value;
+  D.note.articles[i].title=document.getElementById('ea-title').value;
+  D.note.articles[i].copies=Number(document.getElementById('ea-copies').value||0);
+  D.note.articles[i].revenue=Number(document.getElementById('ea-rev').value||0);
+  editingArtIdx=-1;markDirty();renderArticles();
+}
+
+function renderMagazines(){
+  renderYearTabs('nmy',magYear,'setMagY');
+  renderMonthTabs('nmm',magMonth,'setMagM');
+  const prefix=magYear+'-'+magMonth;
+  const filtered=D.note.magazines.map((a,idx)=>({...a,idx})).filter(a=>a.date&&a.date.startsWith(prefix));
+  document.getElementById('nmb').innerHTML=filtered.map(a=>{
+    if(a.idx===editingMagIdx){
+      return `<tr class="edit-row">
+        <td><input type="date" id="em-date" value="${a.date||''}" style="max-width:130px;"/></td>
+        <td><input type="text" id="em-name" value="${(a.name||'').replace(/"/g,'&quot;')}"/></td>
+        <td><input type="number" id="em-copies" value="${a.copies||0}" style="max-width:60px;"/></td>
+        <td><input type="number" id="em-rev" value="${a.revenue||0}" style="max-width:90px;"/></td>
+        <td style="white-space:nowrap;"><button class="edit-btn" style="color:#1D9E75;font-weight:600;" onclick="saveMag(${a.idx})">保存</button><button class="edit-btn" style="color:#999;" onclick="cancelEditMag()">取消</button></td>
+      </tr>`;
+    }
+    return `<tr><td>${a.date||'—'}</td><td>${a.name||''}</td><td class="n">${a.copies||0}</td><td class="n">¥${Number(a.revenue||0).toLocaleString()}</td><td style="white-space:nowrap;"><button class="edit-btn" onclick="editMag(${a.idx})">編集</button><button class="del-btn" onclick="delMag(${a.idx})">×</button></td></tr>`;
+  }).join('');
+  if(filtered.length===0){
+    document.getElementById('nmb').innerHTML='<tr><td colspan="5" style="text-align:center;color:#999;padding:1rem;">データなし</td></tr>';
+  }
+}
+let editingMagIdx=-1;
+function editMag(i){editingMagIdx=i;renderMagazines();}
+function cancelEditMag(){editingMagIdx=-1;renderMagazines();}
+function saveMag(i){
+  D.note.magazines[i].date=document.getElementById('em-date').value;
+  D.note.magazines[i].name=document.getElementById('em-name').value;
+  D.note.magazines[i].copies=Number(document.getElementById('em-copies').value||0);
+  D.note.magazines[i].revenue=Number(document.getElementById('em-rev').value||0);
+  editingMagIdx=-1;markDirty();renderMagazines();
+}
+
+function renderX(){
+  renderYearTabs('xy',curYear.x,'setXY');
+  document.getElementById('xb').innerHTML=MK.map((m,i)=>xMonthInput(m,i)).join('');
+  // X revenue
+  const xr=D.x.revenue||[];
+  document.getElementById('xrb').innerHTML=xr.map((r,i)=>{
+    return `<tr><td>${r.start||''}</td><td>${r.end||''}</td><td class="n">¥${Number(r.amount||0).toLocaleString()}</td><td>${r.memo||''}</td><td><button class="del-btn" onclick="delXR(${i})">×</button></td></tr>`;
+  }).join('');
+}
+
+function renderMond(){
+  renderYearTabs('my',curYear.m,'setMY');
+  document.getElementById('mb').innerHTML=MK.map((m,i)=>mondMonthInput(m,i)).join('');
+  renderMondRev();
+}
+
+function renderMondRev(){
+  renderYearTabs('mry',mRevYear,'setMRY');
+  renderMonthTabs('mrm-tabs',mRevMonth,'setMRM');
+  const prefix=mRevYear+'-'+mRevMonth;
+  const filtered=D.mond.revenue.map((r,i)=>({...r,idx:i})).filter(r=>r.date&&r.date.startsWith(prefix));
+  document.getElementById('mrb').innerHTML=filtered.map(r=>{
+    return `<tr><td>${r.date||''}</td><td class="n">¥${Number(r.amount||0).toLocaleString()}</td><td>${r.memo||''}</td><td><button class="del-btn" onclick="delMR(${r.idx})">×</button></td></tr>`;
+  }).join('');
+  if(filtered.length===0){
+    document.getElementById('mrb').innerHTML='<tr><td colspan="4" style="text-align:center;color:#999;padding:1rem;">データなし</td></tr>';
+  }
+}
+
+function renderCorr(){
+  renderYearTabs('cy',curYear.c,'setCY');
+  const y=curYear.c;
+  document.getElementById('cb').innerHTML=MK.map((m,i)=>{
+    const k=y+'-'+m;
+    const nf=D.note.followers[k];const xf=D.x.followers[k];
+    const nv=D.note.views[k];const ac=D.note.articleCount[k];
+    const sc=D.note.subCount[k];const sr=Number(D.note.subRevenue[k]||0);
+    const xi=D.x.impMonth[k];const mv=D.mond.views[k];const mq=D.mond.questions[k];
+    let ar2=0;D.note.articles.forEach(a=>{if(a.saleDate&&a.saleDate.startsWith(k))ar2+=Number(a.revenue||0);});
+    let mg2=0;D.note.magazines.forEach(a=>{if(a.date&&a.date.startsWith(k))mg2+=Number(a.revenue||0);});
+    let mr2=0;D.mond.revenue.forEach(r=>{if(r.date&&r.date.startsWith(k))mr2+=Number(r.amount||0);});
+    const total=sr+ar2+mg2+mr2;
+    const v=x=>x!==undefined&&x!==''?Number(x).toLocaleString():'—';
+    const yen=x=>x>0?'¥'+x.toLocaleString():'—';
+    return `<tr><td>${i+1}月</td><td class="n">${v(nf)}</td><td class="n">${v(xf)}</td><td class="n">${v(nv)}</td><td class="n">${v(ac)}</td><td class="n">${v(sc)}</td><td class="n">${yen(sr)}</td><td class="n">${yen(ar2)}</td><td class="n">${yen(mg2)}</td><td class="n">${yen(total)}</td><td class="n">${v(xi)}</td><td class="n">${v(mv)}</td><td class="n">${v(mq)}</td><td class="n">${yen(mr2)}</td></tr>`;
+  }).join('');
+  const ta=document.getElementById('memo-ta');
+  if(ta){ta.value=D.memo||'';ta.oninput=()=>{D.memo=ta.value;markDirty();};}
+}
+
+/* ── Charts ── */
+function destroyChart(id){if(ch[id]){ch[id].destroy();delete ch[id];}}
+
+function renderGraphs(){
+  const y=curYear.g;
+  renderYearTabs('gy',y,'setGY');
+  const labels=MO;
+
+  // data arrays
+  const nfData=[],xfData=[],nvData=[],xiData=[],nfGrow=[],xfGrow=[];
+  const subRev=[],artRev=[],magRev=[],mondRevArr=[];
+  MK.forEach((m,i)=>{
+    const k=y+'-'+m;
+    nfData.push(Number(D.note.followers[k]||0));
+    xfData.push(Number(D.x.followers[k]||0));
+    nvData.push(Number(D.note.views[k]||0));
+    xiData.push(Number(D.x.impMonth[k]||0));
+    subRev.push(Number(D.note.subRevenue[k]||0));
+    let ar=0;D.note.articles.forEach(a=>{if(a.saleDate&&a.saleDate.startsWith(k))ar+=Number(a.revenue||0);});
+    artRev.push(ar);
+    let mg=0;D.note.magazines.forEach(a=>{if(a.date&&a.date.startsWith(k))mg+=Number(a.revenue||0);});
+    magRev.push(mg);
+    let mr=0;D.mond.revenue.forEach(r=>{if(r.date&&r.date.startsWith(k))mr+=Number(r.amount||0);});
+    mondRevArr.push(mr);
+    // growth
+    if(i===0){
+      const pk=(y-1)+'-12';
+      const pnf=Number(D.note.followers[pk]||0);
+      const pxf=Number(D.x.followers[pk]||0);
+      nfGrow.push(pnf?nfData[0]-pnf:0);
+      xfGrow.push(pxf?xfData[0]-pxf:0);
+    } else {
+      nfGrow.push(nfData[i]-nfData[i-1]);
+      xfGrow.push(xfData[i]-xfData[i-1]);
+    }
+  });
+
+  // 1) Followers - line (note) + line (X), dual Y axis
+  destroyChart('ch-followers');
+  ch['ch-followers']=new Chart(document.getElementById('ch-followers'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'noteフォロワー',data:nfData,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.1)',fill:true,tension:.3,yAxisID:'y',pointRadius:3},
+      {label:'Xフォロワー',data:xfData,borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.1)',fill:true,tension:.3,yAxisID:'y1',pointRadius:3}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      scales:{
+        y:{type:'linear',position:'left',title:{display:true,text:'note'},ticks:{color:'#378ADD'}},
+        y1:{type:'linear',position:'right',title:{display:true,text:'X'},ticks:{color:'#1D9E75'},grid:{drawOnChartArea:false}}
+      },
+      plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8}}}
+    }
+  });
+
+  // 2) Views/Impressions - bar (note views) + bar (X impressions)
+  destroyChart('ch-views');
+  ch['ch-views']=new Chart(document.getElementById('ch-views'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'noteビュー',data:nvData,backgroundColor:'rgba(55,138,221,0.7)',yAxisID:'y'},
+      {label:'Xインプレ',data:xiData,backgroundColor:'rgba(29,158,117,0.7)',yAxisID:'y1'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      scales:{
+        y:{type:'linear',position:'left',title:{display:true,text:'noteビュー'},ticks:{color:'#378ADD'}},
+        y1:{type:'linear',position:'right',title:{display:true,text:'Xインプレ'},ticks:{color:'#1D9E75'},grid:{drawOnChartArea:false}}
+      },
+      plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8}}}
+    }
+  });
+
+  // 3) Revenue - stacked bar (sub+article+magazine) + line (mond)
+  destroyChart('ch-revenue');
+  ch['ch-revenue']=new Chart(document.getElementById('ch-revenue'),{
+    data:{labels,datasets:[
+      {type:'bar',label:'サブスク売上',data:subRev,backgroundColor:'rgba(55,138,221,0.8)',stack:'rev',yAxisID:'y'},
+      {type:'bar',label:'単品売上',data:artRev,backgroundColor:'rgba(245,166,35,0.8)',stack:'rev',yAxisID:'y'},
+      {type:'bar',label:'マガジン売上',data:magRev,backgroundColor:'rgba(155,89,182,0.8)',stack:'rev',yAxisID:'y'},
+      {type:'line',label:'mond収益',data:mondRevArr,borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.15)',fill:false,tension:.3,pointRadius:3,yAxisID:'y1'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      scales:{
+        y:{type:'linear',position:'left',stacked:true,title:{display:true,text:'note売上'}},
+        y1:{type:'linear',position:'right',title:{display:true,text:'mond'},grid:{drawOnChartArea:false}}
+      },
+      plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8}}}
+    }
+  });
+
+  // 4) Follower growth - bar (note) + bar (X) side by side
+  destroyChart('ch-folgrowth');
+  ch['ch-folgrowth']=new Chart(document.getElementById('ch-folgrowth'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'note増減',data:nfGrow,backgroundColor:nfGrow.map(v=>v>=0?'rgba(55,138,221,0.7)':'rgba(163,45,45,0.5)')},
+      {label:'X増減',data:xfGrow,backgroundColor:xfGrow.map(v=>v>=0?'rgba(29,158,117,0.7)':'rgba(163,45,45,0.5)')}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8}}}
+    }
+  });
+
+  // 5) Article sales ranking
+  const rankMap={};
+  D.note.articles.forEach(a=>{
+    if(!a.saleDate||!a.saleDate.startsWith(y+'-'))return;
+    const t=a.title||'(無題)';
+    if(!rankMap[t])rankMap[t]={revenue:0,copies:0};
+    rankMap[t].revenue+=Number(a.revenue||0);
+    rankMap[t].copies+=Number(a.copies||0);
+  });
+  const ranked=Object.entries(rankMap).map(([title,d])=>({title,...d})).sort((a,b)=>b.revenue-a.revenue);
+  const maxRev=ranked.length>0?ranked[0].revenue:1;
+  const rl=document.getElementById('rank-list');
+  if(ranked.length===0){
+    rl.innerHTML='<div style="text-align:center;color:#999;padding:1rem;font-size:13px;">データなし</div>';
+  } else {
+    rl.innerHTML=ranked.map((r,i)=>{
+      const pct=maxRev>0?Math.max((r.revenue/maxRev)*100,2):2;
+      return `<div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;">
+          <span class="rank-name">${i+1}. ${r.title}</span>
+          <span class="rank-val">¥${r.revenue.toLocaleString()}（${r.copies}部）</span>
+        </div>
+        <div style="background:#E6F1FB;border-radius:4px;height:20px;width:100%;margin-top:3px;">
+          <div class="rank-bar" style="width:${pct}%;"></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+function addArt(){
+  const d=document.getElementById('na-date').value;
+  const t=document.getElementById('na-title').value;
+  const c=Number(document.getElementById('na-copies').value||0);
+  const r=Number(document.getElementById('na-rev').value||0);
+  if(!d||!t)return alert('日付とタイトルを入力してください');
+  D.note.articles.push({saleDate:d,title:t,copies:c,revenue:r});
+  document.getElementById('na-date').value='';document.getElementById('na-title').value='';
+  document.getElementById('na-copies').value='';document.getElementById('na-rev').value='';
+  markDirty();renderArticles();
+}
+function delArt(i){if(!confirm('本当に削除しますか？'))return;D.note.articles.splice(i,1);markDirty();renderArticles();}
+
+function addMag(){
+  const d=document.getElementById('nm-date').value;
+  const n=document.getElementById('nm-name').value;
+  const c=Number(document.getElementById('nm-copies').value||0);
+  const r=Number(document.getElementById('nm-rev').value||0);
+  if(!d||!n)return alert('日付とマガジン名を入力してください');
+  D.note.magazines.push({date:d,name:n,copies:c,revenue:r});
+  document.getElementById('nm-date').value='';document.getElementById('nm-name').value='';
+  document.getElementById('nm-copies').value='';document.getElementById('nm-rev').value='';
+  markDirty();renderMagazines();
+}
+function delMag(i){if(!confirm('本当に削除しますか？'))return;D.note.magazines.splice(i,1);markDirty();renderMagazines();}
+
+function addXR(){
+  const s=document.getElementById('xr-s').value;
+  const e=document.getElementById('xr-e').value;
+  const a=Number(document.getElementById('xr-a').value||0);
+  const m=document.getElementById('xr-m').value;
+  if(!s)return alert('開始日を入力してください');
+  D.x.revenue.push({start:s,end:e,amount:a,memo:m});
+  document.getElementById('xr-s').value='';document.getElementById('xr-e').value='';
+  document.getElementById('xr-a').value='';document.getElementById('xr-m').value='';
+  markDirty();renderX();
+}
+function delXR(i){if(!confirm('本当に削除しますか？'))return;D.x.revenue.splice(i,1);markDirty();renderX();}
+
+function addMR(){
+  const d=document.getElementById('mr-d').value;
+  const a=Number(document.getElementById('mr-a').value||0);
+  const m=document.getElementById('mr-m').value;
+  if(!d)return alert('日付を入力してください');
+  D.mond.revenue.push({date:d,amount:a,memo:m});
+  document.getElementById('mr-d').value='';document.getElementById('mr-a').value='';document.getElementById('mr-m').value='';
+  markDirty();renderMondRev();
+}
+function delMR(i){if(!confirm('本当に削除しますか？'))return;D.mond.revenue.splice(i,1);markDirty();renderMondRev();}
+
+/* ── Year/Month setters ── */
+function setOY(y){curYear.o=y;renderOverview();}
+function setNY(y){curYear.n=y;renderNote();}
+function setXY(y){curYear.x=y;renderX();}
+function setMY(y){curYear.m=y;renderMond();}
+function setGY(y){curYear.g=y;renderGraphs();}
+function setCY(y){curYear.c=y;renderCorr();}
+function setArtY(y){artYear=y;renderArticles();}
+function setArtM(m){artMonth=m;renderArticles();}
+function setMagY(y){magYear=y;renderMagazines();}
+function setMagM(m){magMonth=m;renderMagazines();}
+function setMRY(y){mRevYear=y;renderMondRev();}
+function setMRM(m){mRevMonth=m;renderMondRev();}
+
+/* ── Render all ── */
+function renderAll(){
+  renderOverview();renderNote();renderX();renderMond();renderCorr();
+}
+
+loadData();
+</script>
+</body>
+</html>
